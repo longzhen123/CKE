@@ -1,3 +1,4 @@
+import random
 import time
 import torch as t
 import torch.nn as nn
@@ -19,11 +20,13 @@ class CKE(nn.Module):
         ent_emb_matrix = t.randn(n_entity, dim)
         Mr_matrix = t.randn(n_rels, dim, dim)
         rel_emb_matrix = t.randn(n_rels, dim)
+
         nn.init.xavier_uniform_(user_emb_matrix)
         nn.init.xavier_uniform_(item_emb_matrix)
         nn.init.xavier_uniform_(ent_emb_matrix)
         nn.init.xavier_uniform_(Mr_matrix)
         nn.init.xavier_uniform_(rel_emb_matrix)
+
         self.user_emb_matrix = nn.Parameter(user_emb_matrix)
         self.item_emb_matrix = nn.Parameter(item_emb_matrix)
         self.ent_emb_matrix = nn.Parameter(ent_emb_matrix)
@@ -102,12 +105,12 @@ def eval_ctr(model, pairs, batch_size):
     true_label = [pair[2] for pair in pairs]
     auc = roc_auc_score(true_label, pred_label)
 
-    pred_np  = np.array(pred_label)
+    pred_np = np.array(pred_label)
     pred_np[pred_np >= 0.5] = 1
     pred_np[pred_np < 0.5] = 0
     pred_label = pred_np.tolist()
     acc = accuracy_score(true_label, pred_label)
-    return round(auc, 3), round(acc, 3)
+    return auc, acc
 
 
 def get_uvvs(pairs):
@@ -161,10 +164,14 @@ def get_hrtts(kg_dict):
 
 
 def train(args, is_topk=False):
-    np.random.seed(555)
+    np.random.seed(123)
+    t.manual_seed(123)
+    t.cuda.manual_seed(123)
+    t.cuda.manual_seed_all(123)
+    random.seed(123)
 
     data = load_data(args)
-    n_entity, n_user, n_item, n_relation =  data[0], data[1], data[2], data[3]
+    n_entity, n_user, n_item, n_relation = data[0], data[1], data[2], data[3]
     train_set, eval_set, test_set, rec, kg_dict = data[4], data[5], data[6], data[7], data[8]
     test_records = get_records(test_set)
     hrtts = get_hrtts(kg_dict)
@@ -231,8 +238,8 @@ def train(args, is_topk=False):
         eval_auc, eval_acc = eval_ctr(model, eval_set, args.batch_size)
         test_auc, test_acc = eval_ctr(model, test_set, args.batch_size)
 
-        print('epoch: %d \t train_auc: %.3f \t train_acc: %.3f \t '
-              'eval_auc: %.3f \t eval_acc: %.3f \t test_auc: %.3f \t test_acc: %.3f \t' %
+        print('epoch: %d \t train_auc: %.4f \t train_acc: %.4f \t '
+              'eval_auc: %.4f \t eval_acc: %.4f \t test_auc: %.4f \t test_acc: %.4f \t' %
               ((epoch+1), train_auc, train_acc, eval_auc, eval_acc, test_auc, test_acc), end='\t')
 
         precision_list = []
@@ -253,8 +260,8 @@ def train(args, is_topk=False):
 
     indices = eval_auc_list.index(max(eval_auc_list))
     print(args.dataset, end='\t')
-    print('train_auc: %.3f \t train_acc: %.3f \t eval_auc: %.3f \t eval_acc: %.3f \t '
-          'test_auc: %.3f \t test_acc: %.3f \t' %
+    print('train_auc: %.4f \t train_acc: %.4f \t eval_auc: %.4f \t eval_acc: %.4f \t '
+          'test_auc: %.4f \t test_acc: %.4f \t' %
         (train_auc_list[indices], train_acc_list[indices], eval_auc_list[indices], eval_acc_list[indices],
          test_auc_list[indices], test_acc_list[indices]), end='\t')
 
