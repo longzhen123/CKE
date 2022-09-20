@@ -1,11 +1,9 @@
-import random
 import time
 import torch as t
 import torch.nn as nn
 import numpy as np
 from torch import optim
 from src.load_base import load_data, get_records
-from src.evaluate import get_all_metrics
 from sklearn.metrics import roc_auc_score, accuracy_score
 
 
@@ -78,21 +76,6 @@ class CKE(nn.Module):
         return score.cpu().detach().view(-1).numpy().tolist()
 
 
-def get_scores(model, rec):
-    scores = {}
-    model.eval()
-    for user in (rec):
-        pairs = [[user, item] for item in rec[user]]
-        predict = model.get_predict(pairs)
-        # print(predict)
-        n = len(pairs)
-        user_scores = {rec[user][i]: predict[i] for i in range(n)}
-        user_list = list(dict(sorted(user_scores.items(), key=lambda x: x[1], reverse=True)).keys())
-        scores[user] = user_list
-    model.train()
-    return scores
-
-
 def eval_ctr(model, pairs, batch_size):
 
     model.eval()
@@ -159,21 +142,16 @@ def get_hrtts(kg_dict):
                 if [relation, negative_tail] not in kg_dict[head]:
                     hrtts.append([head, relation, positive_tail, negative_tail])
                     break
-
+    np.random.shuffle(hrtts)
     return hrtts
 
 
-def train(args, is_topk=False):
+def train(args):
     np.random.seed(123)
-    t.manual_seed(123)
-    t.cuda.manual_seed(123)
-    t.cuda.manual_seed_all(123)
-    random.seed(123)
 
     data = load_data(args)
     n_entity, n_user, n_item, n_relation = data[0], data[1], data[2], data[3]
-    train_set, eval_set, test_set, rec, kg_dict = data[4], data[5], data[6], data[7], data[8]
-    test_records = get_records(test_set)
+    train_set, eval_set, test_set, kg_dict = data[4], data[5], data[6], data[7]
     hrtts = get_hrtts(kg_dict)
     model = CKE(n_entity, n_user, n_item, n_relation, args.dim)
 
@@ -195,7 +173,7 @@ def train(args, is_topk=False):
     eval_acc_list = []
     test_auc_list = []
     test_acc_list = []
-    all_precision_list = []
+
     for epoch in range(args.epochs):
 
         start = time.clock()
@@ -242,19 +220,12 @@ def train(args, is_topk=False):
               'eval_auc: %.4f \t eval_acc: %.4f \t test_auc: %.4f \t test_acc: %.4f \t' %
               ((epoch+1), train_auc, train_acc, eval_auc, eval_acc, test_auc, test_acc), end='\t')
 
-        precision_list = []
-        if is_topk:
-            scores = get_scores(model, rec)
-            precision_list = get_all_metrics(scores, test_records)[0]
-            print(precision_list, end='\t')
-
         train_auc_list.append(train_auc)
         train_acc_list.append(train_acc)
         eval_auc_list.append(eval_auc)
         eval_acc_list.append(eval_acc)
         test_auc_list.append(test_auc)
         test_acc_list.append(test_acc)
-        all_precision_list.append(precision_list)
         end = time.clock()
         print('time: %d' % (end - start))
 
@@ -263,9 +234,7 @@ def train(args, is_topk=False):
     print('train_auc: %.4f \t train_acc: %.4f \t eval_auc: %.4f \t eval_acc: %.4f \t '
           'test_auc: %.4f \t test_acc: %.4f \t' %
         (train_auc_list[indices], train_acc_list[indices], eval_auc_list[indices], eval_acc_list[indices],
-         test_auc_list[indices], test_acc_list[indices]), end='\t')
-
-    print(all_precision_list[indices])
+         test_auc_list[indices], test_acc_list[indices]))
 
     return eval_auc_list[indices], eval_acc_list[indices], test_auc_list[indices], test_acc_list[indices]
 

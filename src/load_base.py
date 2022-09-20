@@ -64,16 +64,6 @@ def data_split(ratings_np, ratio):
     return train_set, eval_set, test_set
 
 
-def get_rec(train_records, eval_records,  test_records, item_set):
-
-    rec = dict()
-    users = list(test_records.keys())
-    for user in users[:100]:
-        neg_items = list(item_set - set(train_records[user]) - set(eval_records[user]) - set(test_records[user]))
-        rec[user] = np.random.choice(neg_items, 100).tolist() + np.random.choice(test_records[user], 1).tolist()
-    return rec
-
-
 def load_ratings(data_dir):
 
     data_np = pd.read_csv(data_dir + 'ratings.txt', delimiter='\t', header=None).values
@@ -130,11 +120,10 @@ def load_data(args):
     train_records = get_records(train_set)
     eval_records = get_records(eval_set)
     test_records = get_records(test_set)
-    rec = get_rec(train_records, eval_records, test_records, item_set)
     kg_dict, n_entity, n_relation = load_kg(data_dir)
     n_entity = n_entity
     n_user = len(user_set)
     n_item = len(item_set)
-    data = [n_entity, n_user, n_item, n_relation, train_set, eval_set, test_set, rec, kg_dict]
+    data = [n_entity, n_user, n_item, n_relation, train_set, eval_set, test_set, kg_dict]
 
     return data
