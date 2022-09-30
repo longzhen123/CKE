@@ -3,6 +3,8 @@ import torch as t
 import torch.nn as nn
 import numpy as np
 from torch import optim
+
+from src.evaluate import get_hit, get_ndcg
 from src.load_base import load_data, get_records
 from sklearn.metrics import roc_auc_score, accuracy_score
 
@@ -96,6 +98,27 @@ def eval_ctr(model, pairs, batch_size):
     return auc, acc
 
 
+def eval_topk(model, rec, topk):
+    HR, NDCG = [], []
+
+    model.eval()
+    for user in rec:
+        items = list(rec[user])
+        pairs = [[user, item] for item in items]
+        predict = []
+
+        predict.extend(model.get_predict(pairs))
+        # predict = self.forward(pairs, ripple_sets).cpu().detach().view(-1).numpy().tolist()
+        n = len(pairs)
+        item_scores = {items[i]: predict[i] for i in range(n)}
+        item_list = list(dict(sorted(item_scores.items(), key=lambda x: x[1], reverse=True)).keys())[: topk]
+        HR.append(get_hit(items[-1], item_list))
+        NDCG.append(get_ndcg(items[-1], item_list))
+
+    model.train()
+    return np.mean(HR), np.mean(NDCG)
+
+
 def get_uvvs(pairs):
     positive_dict = {}
     negative_dict = {}
@@ -142,16 +165,17 @@ def get_hrtts(kg_dict):
                 if [relation, negative_tail] not in kg_dict[head]:
                     hrtts.append([head, relation, positive_tail, negative_tail])
                     break
-    np.random.shuffle(hrtts)
+
     return hrtts
 
 
-def train(args):
+def train(args, is_topk=False):
     np.random.seed(123)
 
     data = load_data(args)
     n_entity, n_user, n_item, n_relation = data[0], data[1], data[2], data[3]
     train_set, eval_set, test_set, kg_dict = data[4], data[5], data[6], data[7]
+    rec = data[8]
     hrtts = get_hrtts(kg_dict)
     model = CKE(n_entity, n_user, n_item, n_relation, args.dim)
 
@@ -173,6 +197,8 @@ def train(args):
     eval_acc_list = []
     test_auc_list = []
     test_acc_list = []
+    HR_list = []
+    NDCG_list = []
 
     for epoch in range(args.epochs):
 
@@ -220,12 +246,19 @@ def train(args):
               'eval_auc: %.4f \t eval_acc: %.4f \t test_auc: %.4f \t test_acc: %.4f \t' %
               ((epoch+1), train_auc, train_acc, eval_auc, eval_acc, test_auc, test_acc), end='\t')
 
+        HR, NDCG = 0, 0
+        if is_topk:
+            HR, NDCG = eval_topk(model, rec, args.topk)
+            print('HR: %.4f NDCG: %.4f' % (HR, NDCG), end='\t')
+
         train_auc_list.append(train_auc)
         train_acc_list.append(train_acc)
         eval_auc_list.append(eval_auc)
         eval_acc_list.append(eval_acc)
         test_auc_list.append(test_auc)
         test_acc_list.append(test_acc)
+        HR_list.append(HR)
+        NDCG_list.append(NDCG)
         end = time.clock()
         print('time: %d' % (end - start))
 
@@ -234,7 +267,8 @@ def train(args):
     print('train_auc: %.4f \t train_acc: %.4f \t eval_auc: %.4f \t eval_acc: %.4f \t '
           'test_auc: %.4f \t test_acc: %.4f \t' %
         (train_auc_list[indices], train_acc_list[indices], eval_auc_list[indices], eval_acc_list[indices],
-         test_auc_list[indices], test_acc_list[indices]))
+         test_auc_list[indices], test_acc_list[indices]), end='\t')
+    print('HR: %.4f \t NDCG: %.4f' % (HR_list[indices], NDCG_list[indices]))
 
     return eval_auc_list[indices], eval_acc_list[indices], test_auc_list[indices], test_acc_list[indices]
 
