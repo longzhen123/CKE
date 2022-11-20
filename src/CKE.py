@@ -133,7 +133,7 @@ def eval_topk(model, rec):
         item_scores = {items[i]: predict[i] for i in range(n)}
         item_list = list(dict(sorted(item_scores.items(), key=lambda x: x[1], reverse=True)).keys())
 
-        precision_list.append([len({items[-1]}.difference(item_list[:k])) / k for k in [1, 2, 3, 4, 5, 10, 20]])
+        precision_list.append([len({items[-1]}.intersection(item_list[:k])) / k for k in [1, 2, 3, 4, 5, 10, 20]])
 
     model.train()
     return np.array(precision_list).mean(axis=0)
@@ -278,7 +278,7 @@ def train(args, is_topk=False):
 
             for i in range(len(precision)):
 
-                if i == len(precision_list) - 1:
+                if i == len(precision) - 1:
                     print('%.4f' % precision[i], end=']')
                 else:
                     print('%.4f' % precision[i], end=', ')
