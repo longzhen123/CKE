@@ -274,7 +274,7 @@ def train(args, is_topk=False):
             # print('HR: %.4f NDCG: %.4f' % (HR, NDCG), end='\t')
 
             precision = eval_topk(model, rec)
-            print("Precisio: [", end='')
+            print("Precision: [", end='')
 
             for i in range(len(precision)):
 
