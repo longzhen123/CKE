@@ -5,7 +5,7 @@ import numpy as np
 from torch import optim
 
 from src.evaluate import get_hit, get_ndcg
-from src.load_base import load_data, get_records
+from src.load_base import load_data
 from sklearn.metrics import roc_auc_score, accuracy_score
 
 
@@ -98,8 +98,28 @@ def eval_ctr(model, pairs, batch_size):
     return auc, acc
 
 
-def eval_topk(model, rec, topk):
-    HR, NDCG = [], []
+# def eval_topk(model, rec, topk):
+#     HR, NDCG = [], []
+#
+#     model.eval()
+#     for user in rec:
+#         items = list(rec[user])
+#         pairs = [[user, item] for item in items]
+#         predict = []
+#
+#         predict.extend(model.get_predict(pairs))
+#         # predict = self.forward(pairs, ripple_sets).cpu().detach().view(-1).numpy().tolist()
+#         n = len(pairs)
+#         item_scores = {items[i]: predict[i] for i in range(n)}
+#         item_list = list(dict(sorted(item_scores.items(), key=lambda x: x[1], reverse=True)).keys())[: topk]
+#         HR.append(get_hit(items[-1], item_list))
+#         NDCG.append(get_ndcg(items[-1], item_list))
+#
+#     model.train()
+#     return np.mean(HR), np.mean(NDCG)
+
+def eval_topk(model, rec):
+    precision_list = []
 
     model.eval()
     for user in rec:
@@ -111,12 +131,12 @@ def eval_topk(model, rec, topk):
         # predict = self.forward(pairs, ripple_sets).cpu().detach().view(-1).numpy().tolist()
         n = len(pairs)
         item_scores = {items[i]: predict[i] for i in range(n)}
-        item_list = list(dict(sorted(item_scores.items(), key=lambda x: x[1], reverse=True)).keys())[: topk]
-        HR.append(get_hit(items[-1], item_list))
-        NDCG.append(get_ndcg(items[-1], item_list))
+        item_list = list(dict(sorted(item_scores.items(), key=lambda x: x[1], reverse=True)).keys())
+
+        precision_list.append([len({items[-1]}.difference(item_list[:k])) / k for k in [1, 2, 3, 4, 5, 10, 20]])
 
     model.train()
-    return np.mean(HR), np.mean(NDCG)
+    return np.array(precision_list).mean(axis=0)
 
 
 def get_uvvs(pairs):
@@ -199,6 +219,7 @@ def train(args, is_topk=False):
     test_acc_list = []
     HR_list = []
     NDCG_list = []
+    precision_list = []
 
     for epoch in range(args.epochs):
 
@@ -247,9 +268,20 @@ def train(args, is_topk=False):
               ((epoch+1), train_auc, train_acc, eval_auc, eval_acc, test_auc, test_acc), end='\t')
 
         HR, NDCG = 0, 0
+        precision = []
         if is_topk:
-            HR, NDCG = eval_topk(model, rec, args.topk)
-            print('HR: %.4f NDCG: %.4f' % (HR, NDCG), end='\t')
+            # HR, NDCG = eval_topk(model, rec, args.topk)
+            # print('HR: %.4f NDCG: %.4f' % (HR, NDCG), end='\t')
+
+            precision = eval_topk(model, rec)
+            print("Precisio: [", end='')
+
+            for i in range(len(precision)):
+
+                if i == len(precision_list) - 1:
+                    print('%.4f' % precision[i], end=']')
+                else:
+                    print('%.4f' % precision[i], end=', ')
 
         train_auc_list.append(train_auc)
         train_acc_list.append(train_acc)
@@ -259,6 +291,7 @@ def train(args, is_topk=False):
         test_acc_list.append(test_acc)
         HR_list.append(HR)
         NDCG_list.append(NDCG)
+        precision_list.append(precision)
         end = time.clock()
         print('time: %d' % (end - start))
 
@@ -268,7 +301,9 @@ def train(args, is_topk=False):
           'test_auc: %.4f \t test_acc: %.4f \t' %
         (train_auc_list[indices], train_acc_list[indices], eval_auc_list[indices], eval_acc_list[indices],
          test_auc_list[indices], test_acc_list[indices]), end='\t')
-    print('HR: %.4f \t NDCG: %.4f' % (HR_list[indices], NDCG_list[indices]))
+    # print('HR: %.4f \t NDCG: %.4f' % (HR_list[indices], NDCG_list[indices]))
+    print('Precision: ', end='')
+    print(precision_list[indices].tolist())
 
     return eval_auc_list[indices], eval_acc_list[indices], test_auc_list[indices], test_acc_list[indices]
 
