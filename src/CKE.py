@@ -136,7 +136,7 @@ def eval_topk(model, rec):
         precision_list.append([len({items[-1]}.intersection(item_list[:k])) / k for k in [1, 2, 3, 4, 5, 10, 20]])
 
     model.train()
-    return np.array(precision_list).mean(axis=0)
+    return np.array(precision_list).mean(axis=0).tolist()
 
 
 def get_uvvs(pairs):
@@ -303,7 +303,7 @@ def train(args, is_topk=False):
          test_auc_list[indices], test_acc_list[indices]), end='\t')
     # print('HR: %.4f \t NDCG: %.4f' % (HR_list[indices], NDCG_list[indices]))
     print('Precision: ', end='')
-    print(precision_list[indices].tolist())
+    print(precision_list[indices])
 
     return eval_auc_list[indices], eval_acc_list[indices], test_auc_list[indices], test_acc_list[indices]
 
